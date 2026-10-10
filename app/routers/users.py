@@ -1,5 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from firebase_admin import auth
+from sqlalchemy.orm import Session
+from app.db.database import get_db
+from app.db.models.user import User
 from app.dependencies.auth import get_current_user
 
 # 사용자 관련 API들을 묶어주는 Router
@@ -9,17 +12,37 @@ router = APIRouter(
 )
 
 @router.get("/me")
-def get_my_info(current_user = Depends(get_current_user)):
+def get_my_info(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
-    Firebase ID Token 검증 테스트용 API.
+    내 정보 조회 API.
 
-    토큰 검증에 성공하면
-    현재 로그인한 사용자의 Firebase UID와 이메일을 반환한다.
+    토큰의 Firebase UID로 users 테이블에서 사용자를 찾는다.
+    처음 로그인한 사용자라서 없으면 새로 저장한다.
     """
+    uid = current_user.get("uid")
+
+    user = db.query(User).filter(User.firebase_uid == uid).first()
+
+    if user is None:
+        user = User(
+            firebase_uid = uid,
+            email = current_user.get("email"),
+            name = current_user.get("name"),
+        )
+        db.add(user) # 저장할 목록에 추가
+        db.commit()  # 실제로 DB에 저장
+        db.refresh(user)  # DB가 채워 준 id, 가입 시각을 다시 읽어 옴
 
     return {
+        "id": user.id,
         "uid": current_user.get("uid"),
         "email": current_user.get("email"),
+        "name": user.name,
+        "profile_image_url": user.profile_image_url,
+        "created_at": user.created_at,
     }
 
 @router.delete("/me")
