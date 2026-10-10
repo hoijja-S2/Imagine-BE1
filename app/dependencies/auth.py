@@ -1,6 +1,10 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth
+from sqlalchemy.orm import Session
+
+from app.db.database import get_db
+from app.db.models.user import User
 
 
 # Authorization: Bearer <토큰>
@@ -33,4 +37,33 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired Firebase ID token",
         )
+
+def get_current_db_user(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    토큰을 확인한 뒤, users 테이블에서 그 사용자를 찾아 돌려준다.
+    처음 보는 사용자라서 없으면 새로 저장한 뒤 돌려준다.
+
+    로그인한 사용자의 DB 정보가 필요한 API는 이 함수를 쓴다.
+    """
+
+    uid = current_user.get("uid")
+
+    # users 테이블에서 firebase_uid가 같은 사용자 찾기
+    user = db.query(User).filter(User.firebase_uid == uid).first()
+
+    # 없으면 처음 보는 사용자 → 새로 저장
+    if user is None:
+        user = User(
+            firebase_uid=uid,
+            email=current_user.get("email"),
+            name=current_user.get("name"),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    return user
 
