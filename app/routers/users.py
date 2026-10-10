@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from firebase_admin import auth
 from sqlalchemy.orm import Session
+from app.core.errors import AppError
 from app.db.database import get_db
 from app.db.models.user import User
 from app.dependencies.auth import get_current_user, get_current_db_user
@@ -55,10 +56,7 @@ def delete_my_account(
 
     except auth.UserNotFoundError:
         # 이미 삭제된 계정이면 404 반환
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+        raise AppError(404, "USER_NOT_FOUND", "회원 정보를 찾을 수 없습니다.")
 
     return {
         "message": "User deleted successfully",

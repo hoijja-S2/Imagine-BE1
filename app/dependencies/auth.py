@@ -1,8 +1,9 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError
 from app.db.database import get_db
 from app.db.models.user import User
 
@@ -33,10 +34,7 @@ def get_current_user(
 
     except Exception:
         # 잘못됐거나 만료된 토큰이면 401 반환
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired Firebase ID token",
-        )
+        raise AppError(401, "INVALID_TOKEN", "로그인 정보가 올바르지 않거나 만료되었습니다.")
 
 def get_current_db_user(
     current_user = Depends(get_current_user),

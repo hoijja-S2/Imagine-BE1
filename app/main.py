@@ -5,11 +5,13 @@ from app.core.firebase import initialize_firebase
 from app.db.database import create_tables, get_db
 from app.routers.scenarios import router as scenarios_router
 from app.routers.users import router as users_router
+from app.core.errors import register_error_handlers
 
 initialize_firebase()
 create_tables()  # DB에 없는 테이블 자동 생성
 
 app = FastAPI()
+register_error_handlers(app)  # 모든 에러를 공통 모양으로
 
 app.include_router(scenarios_router) #시안 관련 API.
 app.include_router(users_router) #사용자 관련 API.
