@@ -2,9 +2,9 @@ from fastapi import FastAPI, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.core.firebase import initialize_firebase
-from app.db.database import create_tables, get_db
-from app.routers.scenarios import router as scenarios_router
-from app.routers.users import router as users_router
+from app.core.database import create_tables, get_db
+from app.scenarios.scene_API import router as scenarios_router
+from app.users.user_API import router as users_router
 from app.core.errors import register_error_handlers
 
 initialize_firebase()

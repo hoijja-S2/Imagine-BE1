@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends
 from firebase_admin import auth
 from sqlalchemy.orm import Session
 from app.core.errors import AppError
-from app.db.database import get_db
-from app.db.models.user import User
-from app.dependencies.auth import get_current_user, get_current_db_user
+from app.core.database import get_db
+from app.users.user_table import User
+from app.core.auth import get_current_user, get_current_db_user
 
 # 사용자 관련 API들을 묶어주는 Router
 router = APIRouter(

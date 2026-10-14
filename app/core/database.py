@@ -55,5 +55,5 @@ def create_tables():
     DB에 아직 없는 테이블을 새로 만든다.
     서버가 시작될 때 main.py에서 한 번 호출한다.
     """
-    import app.db.models  # 모든 테이블 모델 불러오기
+    import app.core.model_registry  # 모든 테이블 모델 불러오기
     Base.metadata.create_all(bind=engine)

@@ -4,8 +4,8 @@ from firebase_admin import auth
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.db.database import get_db
-from app.db.models.user import User
+from app.core.database import get_db
+from app.users.user_table import User
 
 
 # Authorization: Bearer <토큰>
