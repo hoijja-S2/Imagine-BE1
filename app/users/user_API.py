@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 from firebase_admin import auth
 from sqlalchemy.orm import Session
@@ -24,6 +25,7 @@ def get_my_info(user: User = Depends(get_current_db_user)):
         "uid": user.firebase_uid,
         "email": user.email,
         "name": user.name,
+        "is_guest": user.is_guest,
         "profile_image_url": user.profile_image_url,
         "created_at": user.created_at,
     }
@@ -43,7 +45,6 @@ def delete_my_account(
 
     uid = current_user.get("uid")
 
-    # TODO: 시안 테이블이 생기면 내 시안도 여기서 먼저 삭제
     #1. db에서 내 정보 삭제
     user = db.query(User).filter(User.firebase_uid == uid).first()
     if user is not None:
@@ -62,3 +63,26 @@ def delete_my_account(
         "message": "User deleted successfully",
         "uid": uid
     }
+
+# [자동 정리] 7일 넘게 활동이 없는 게스트와 그 데이터(프로젝트·시안·마감재)를 지운다
+#   서버가 켜질 때 main.py에서 한 번 실행한다. API가 아니다.
+def delete_old_guests(db: Session) -> int:
+    limit = datetime.now() - timedelta(days=7)
+    guests = (db.query(User)
+              .filter(User.is_guest.is_(True), User.last_active_at < limit)
+              .all())
+    uids = [g.firebase_uid for g in guests]
+
+    # 1. DB에서 삭제 (프로젝트·시안·마감재도 함께 지워짐)
+    for g in guests:
+        db.delete(g)
+    db.commit()
+
+    # 2. Firebase의 게스트 계정도 삭제
+    for uid in uids:
+        try:
+            auth.delete_user(uid)
+        except auth.UserNotFoundError:
+            pass
+
+    return len(uids)

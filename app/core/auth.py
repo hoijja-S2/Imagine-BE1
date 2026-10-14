@@ -1,67 +1,61 @@
+from datetime import datetime
+
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth
 from sqlalchemy.orm import Session
 
-from app.core.errors import AppError
 from app.core.database import get_db
+from app.core.errors import AppError
 from app.users.user_table import User
 
 
-# Authorization: Bearer <토큰>
-# 형식의 인증 정보를 처리하기 위한 객체
+# Authorization: Bearer <토큰> 형식의 인증 정보를 처리하기 위한 객체
 security = HTTPBearer()
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-):
-    """
-    Firebase ID Token을 검증하고
-    현재 로그인한 사용자 정보를 반환한다.
-    """
-
-    # FastAPI가 Authorization 헤더에서
-    # 실제 토큰 부분만 꺼내준다.
-    id_token = credentials.credentials
-
+# [로그인 확인] 토큰이 진짜인지 확인하고 토큰 안의 정보(uid, 이메일 등)를 돌려준다
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        # Firebase Admin SDK로 ID Token 검증
-        decoded_token = auth.verify_id_token(id_token)
-
-        # 검증 성공 시 uid, email 등이 들어 있는 정보 반환
-        return decoded_token
-
+        return auth.verify_id_token(credentials.credentials)
     except Exception:
-        # 잘못됐거나 만료된 토큰이면 401 반환
         raise AppError(401, "INVALID_TOKEN", "로그인 정보가 올바르지 않거나 만료되었습니다.")
 
-def get_current_db_user(
-    current_user = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> User:
-    """
-    토큰을 확인한 뒤, users 테이블에서 그 사용자를 찾아 돌려준다.
-    처음 보는 사용자라서 없으면 새로 저장한 뒤 돌려준다.
 
-    로그인한 사용자의 DB 정보가 필요한 API는 이 함수를 쓴다.
-    """
-
+# [로그인 확인 + 내 정보] DB의 내 사용자 정보를 돌려준다 (회원·게스트 모두 사용 가능)
+#   - 처음 보는 사용자면 등록 (익명 로그인이면 게스트로)
+#   - 게스트가 정식 가입했으면 회원으로 바꿈
+#   - 게스트는 마지막 활동 시각을 기록 (7일 정리 기준)
+def get_current_db_user(current_user = Depends(get_current_user),
+                        db: Session = Depends(get_db)) -> User:
     uid = current_user.get("uid")
 
-    # users 테이블에서 firebase_uid가 같은 사용자 찾기
+    # 토큰 안의 로그인 방식이 'anonymous'면 게스트
+    is_guest = current_user.get("firebase", {}).get("sign_in_provider") == "anonymous"
+
     user = db.query(User).filter(User.firebase_uid == uid).first()
 
-    # 없으면 처음 보는 사용자 → 새로 저장
     if user is None:
-        user = User(
-            firebase_uid=uid,
-            email=current_user.get("email"),
-            name=current_user.get("name"),
-        )
+        # 처음 보는 사용자 → 등록
+        user = User(firebase_uid=uid, email=current_user.get("email"),
+                    name=current_user.get("name"), is_guest=is_guest)
         db.add(user)
-        db.commit()
-        db.refresh(user)
+    elif user.is_guest and not is_guest:
+        # 게스트였는데 정식 가입함 (uid는 그대로) → 회원으로 바꾸기
+        user.is_guest = False
+        user.email = current_user.get("email")
+        user.name = user.name or current_user.get("name")
 
+    if user.is_guest:
+        user.last_active_at = datetime.now()
+
+    db.commit()
+    db.refresh(user)
     return user
 
+
+# [회원 전용] 게스트면 막는다 (시안 저장·목록·상세·삭제·비교에서 사용)
+def get_member_user(user: User = Depends(get_current_db_user)) -> User:
+    if user.is_guest:
+        raise AppError(403, "GUEST_NOT_ALLOWED", "회원가입 후 이용할 수 있는 기능이에요.")
+    return user

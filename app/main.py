@@ -2,13 +2,16 @@ from fastapi import FastAPI, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.core.firebase import initialize_firebase
-from app.core.database import create_tables, get_db
+from app.core.database import SessionLocal, create_tables, get_db
 from app.scenarios.scene_API import router as scenarios_router
-from app.users.user_API import router as users_router
+from app.users.user_API import delete_old_guests, router as users_router
 from app.core.errors import register_error_handlers
 
 initialize_firebase()
 create_tables()  # DB에 없는 테이블 자동 생성
+
+with SessionLocal() as db:
+    delete_old_guests(db)  # 7일 넘게 활동 없는 게스트 정리
 
 app = FastAPI()
 register_error_handlers(app)  # 모든 에러를 공통 모양으로

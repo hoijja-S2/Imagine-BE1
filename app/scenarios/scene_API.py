@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_db_user
+from app.core.auth import get_member_user
 from app.core.database import get_db
 from app.core.errors import AppError
 from app.scenarios.scene_table import Scenario
@@ -42,7 +42,7 @@ class ScenarioOut(BaseModel):
 
 # [저장된 시안 목록 화면] 내가 저장한 시안들을 최근 저장한 순서로 보여 준다
 @router.get("")
-def get_saved_list(user: User = Depends(get_current_db_user), db: Session = Depends(get_db)):
+def get_saved_list(user: User = Depends(get_member_user), db: Session = Depends(get_db)):
     scenarios = (db.query(Scenario)
                  .filter(Scenario.user_id == user.id, Scenario.is_saved.is_(True))
                  .order_by(Scenario.saved_at.desc())
@@ -52,7 +52,7 @@ def get_saved_list(user: User = Depends(get_current_db_user), db: Session = Depe
 
 # [시안 비교 화면] 목록에서 고른 시안 2~3개를 나란히 비교한다 (예: ?ids=1,2,3)
 @router.get("/compare")
-def compare(ids: str, user: User = Depends(get_current_db_user), db: Session = Depends(get_db)):
+def compare(ids: str, user: User = Depends(get_member_user), db: Session = Depends(get_db)):
     try:
         scenario_ids = [int(x) for x in ids.split(",")]
     except ValueError:
@@ -75,7 +75,7 @@ def compare(ids: str, user: User = Depends(get_current_db_user), db: Session = D
 
 # [시안 상세 화면]
 @router.get("/{scenario_id}")
-def get_detail(scenario_id: int, user: User = Depends(get_current_db_user), db: Session = Depends(get_db)):
+def get_detail(scenario_id: int, user: User = Depends(get_member_user), db: Session = Depends(get_db)):
     s = db.get(Scenario, scenario_id)
     if s is None or s.user_id != user.id:
         raise AppError(404, "SCENARIO_NOT_FOUND", "시안을 찾을 수 없습니다.")
@@ -84,7 +84,7 @@ def get_detail(scenario_id: int, user: User = Depends(get_current_db_user), db: 
 
 # [최종 시안 화면 - 저장하기 버튼] 시안을 저장, "시안 N" 이름을 붙임
 @router.post("/{scenario_id}/save")
-def save(scenario_id: int, user: User = Depends(get_current_db_user), db: Session = Depends(get_db)):
+def save(scenario_id: int, user: User = Depends(get_member_user), db: Session = Depends(get_db)):
     s = db.get(Scenario, scenario_id)
     if s is None or s.user_id != user.id:
         raise AppError(404, "SCENARIO_NOT_FOUND", "시안을 찾을 수 없습니다.")
@@ -104,7 +104,7 @@ def save(scenario_id: int, user: User = Depends(get_current_db_user), db: Sessio
 
 # [저장된 시안 목록 - 삭제 버튼] 시안, 그 마감재 정보 함께 삭제.
 @router.delete("/{scenario_id}")
-def delete(scenario_id: int, user: User = Depends(get_current_db_user), db: Session = Depends(get_db)):
+def delete(scenario_id: int, user: User = Depends(get_member_user), db: Session = Depends(get_db)):
     s = db.get(Scenario, scenario_id)
     if s is None or s.user_id != user.id:
         raise AppError(404, "SCENARIO_NOT_FOUND", "시안을 찾을 수 없습니다.")
